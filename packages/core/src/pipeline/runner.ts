@@ -66,6 +66,15 @@ export class PipelineRunner {
   }
 
   async writeNextChapter(bookId: string): Promise<ChapterPipelineResult> {
+    const releaseLock = await this.state.acquireBookLock(bookId);
+    try {
+      return await this._writeNextChapterLocked(bookId);
+    } finally {
+      await releaseLock();
+    }
+  }
+
+  private async _writeNextChapterLocked(bookId: string): Promise<ChapterPipelineResult> {
     const book = await this.state.loadBookConfig(bookId);
     const bookDir = this.state.bookDir(bookId);
     const chapterNumber = await this.state.getNextChapterNumber(bookId);

@@ -1,10 +1,32 @@
-import { readFile, writeFile, mkdir, readdir, stat } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import type { BookConfig } from "../models/book.js";
 import type { ChapterMeta } from "../models/chapter.js";
 
 export class StateManager {
   constructor(private readonly projectRoot: string) {}
+
+  async acquireBookLock(bookId: string): Promise<() => Promise<void>> {
+    const lockPath = join(this.bookDir(bookId), ".write.lock");
+    try {
+      await stat(lockPath);
+      const lockData = await readFile(lockPath, "utf-8");
+      throw new Error(
+        `Book "${bookId}" is locked by another process (${lockData}). ` +
+          `If this is stale, delete ${lockPath}`,
+      );
+    } catch (e) {
+      if (e instanceof Error && e.message.includes("is locked")) throw e;
+    }
+    await writeFile(lockPath, `pid:${process.pid} ts:${Date.now()}`, "utf-8");
+    return async () => {
+      try {
+        await unlink(lockPath);
+      } catch {
+        // ignore
+      }
+    };
+  }
 
   get booksDir(): string {
     return join(this.projectRoot, "books");
@@ -61,17 +83,10 @@ export class StateManager {
   }
 
   async getNextChapterNumber(bookId: string): Promise<number> {
-    const chaptersDir = join(this.bookDir(bookId), "chapters");
-    try {
-      const files = await readdir(chaptersDir);
-      const chapterFiles = files.filter((f) => f.endsWith(".md")).sort();
-      if (chapterFiles.length === 0) return 1;
-      const lastFile = chapterFiles[chapterFiles.length - 1]!;
-      const match = lastFile.match(/^(\d+)/);
-      return match ? parseInt(match[1], 10) + 1 : 1;
-    } catch {
-      return 1;
-    }
+    const index = await this.loadChapterIndex(bookId);
+    if (index.length === 0) return 1;
+    const maxNum = Math.max(...index.map((ch) => ch.number));
+    return maxNum + 1;
   }
 
   async loadChapterIndex(bookId: string): Promise<ReadonlyArray<ChapterMeta>> {
