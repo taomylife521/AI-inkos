@@ -570,7 +570,7 @@ export class PipelineRunner {
    * Generate a qualitative style guide from reference text via LLM.
    * Also saves the statistical style_profile.json.
    */
-  async generateStyleGuide(bookId: string, referenceText: string): Promise<string> {
+  async generateStyleGuide(bookId: string, referenceText: string, sourceName?: string): Promise<string> {
     if (referenceText.length < 500) {
       throw new Error(`Reference text too short (${referenceText.length} chars, minimum 500). Provide at least 2000 chars for reliable style extraction.`);
     }
@@ -581,7 +581,7 @@ export class PipelineRunner {
     await mkdir(storyDir, { recursive: true });
 
     // Statistical fingerprint
-    const profile = analyzeStyle(referenceText);
+    const profile = analyzeStyle(referenceText, sourceName);
     await writeFile(join(storyDir, "style_profile.json"), JSON.stringify(profile, null, 2), "utf-8");
 
     // LLM qualitative extraction

@@ -79,7 +79,7 @@ styleCommand
           model: config.llm.model,
           projectRoot: root,
         });
-        await pipeline.generateStyleGuide(bookId, text);
+        await pipeline.generateStyleGuide(bookId, text, opts.name ?? file);
         if (!opts.json) log("Style guide (style_guide.md) generated.");
       }
 
